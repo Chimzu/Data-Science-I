@@ -1,0 +1,220 @@
+---
+title: "Approaching Space"
+author: "Chimzurumoke Orji"
+date: "5/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Space as we know it always seems to get more complex with every step forward we take. We create rules and definitions to understand it better, but it always seems to be just out of our grasp. Nevertheless, that does not hinder or halt our strive for better understanding. In fact, it pushes us to discover more. Examples being the James Webb Telescope planned to launch this coming Halloween in search of exoplanets not only planted in the "Goldilocks Zone," an area in which the planet is neither too close nor too far away from its closest star but also having both habitable weather conditions and a sustaining amount of water on the surface of said planet.
+
+In this project I will use data from Planetary Habitability Laboratory (PHL) and Fast Radio Burst Catalogue to conduct research. This project is to help share both discoveries made from exploration and how much is still missing about said discoveries.
+
+## Packages Used
+
+```{r}
+library(ggplot2) # used for graphs and plots
+library(tidyverse)# used for adding categories
+library(scales) # used to convert decimals into percentages
+library(ggrepel) # used for labeling 
+library(lubridate) #used to format time graphs
+```
+
+## Importing Exoplanet Data for Research
+
+**1) Data so far on planetary habitability** http://phl.upr.edu/projects/habitable-exoplanets-catalog/data/database
+```{r}
+raw_exoplanets <- read.csv(file = "phl_exoplanet_catalog.csv")
+glimpse(raw_exoplanets)
+```
+The data names and meaning in use for this study, P_NAME - planet name, P_YEAR - planet discovered year, P_HABZONE_CON - the planet is in the conservative habitable zone - (1 = yes), P_HABZONE_OPT - the planet is in the optimistic habitable zone - (1 = yes), P_HABITABLE - planet is potentially habitable index (1 = conservative, 2 = optimistic), P_DENSITY - planet density (earth units), P_GRAVITY - planet gravity (earth units), P_TEMP_MEASURED - planet measured equilibrium temperature (K), P_FLUX - planet mean stellar flux (earth units)
+
+## Exploring the Dataset
+
+The data set consists on planets that are either in a conservative habitable zone, meaning they have the bare minimum requirements for life to survive, or an optimistic zone, meaning the planet has more than stable conditions in which life would thrive.
+
+My first attempt in showing either conservative or optimistic planets didn't go as planned due to several planets having either P_HABZONE_CON or P_HABZONE_OPT checked but not being included in the P_HABITABLE column.
+
+```{r}
+semi_habitable <- raw_exoplanets %>% filter((P_HABZONE_CON == 1 | P_HABZONE_OPT == 1) & !is.na(P_MASS)) #added due to some planets missing mass size
+nrow(semi_habitable)
+semi_habitable %>% select(P_NAME, P_HABZONE_CON, P_HABZONE_OPT, P_HABITABLE) %>% head(10)
+```
+Here is the visualization of the flawed filter
+```{r}
+
+ggplot(raw_exoplanets %>% filter((P_HABZONE_CON == 1 | P_HABZONE_OPT == 1) & !is.na(P_MASS)), aes(x = P_YEAR, y = P_MASS, color = P_HABITABLE == 0)) + #true if it does not have P_HABITABLE index
+  geom_point() +
+  labs(title = "Conservative/Optimistic Habitability", x = "Year Discoverd", y = "Exoplanet Mass (Earth Masses)") +
+  theme(legend.position = "right") +
+  guides(color = guide_legend(title = "Habitable Scale"))
+
+```
+
+
+Using the P_HABITABLE index instead gives a more reliable data-set to work with looking into habitable planets.
+```{r}
+habitable_exoplanets <- raw_exoplanets %>% filter((P_HABITABLE == 1 | P_HABITABLE == 2) & !is.na(P_MASS))
+
+nrow(habitable_exoplanets)
+habitable_exoplanets %>%  select(P_NAME, P_HABZONE_CON, P_HABZONE_OPT, P_HABITABLE) %>% head(10)
+```
+Here is the improved visualization of habitable exoplanets
+```{r}
+ggplot(raw_exoplanets %>% filter((P_HABITABLE == 1 | P_HABITABLE == 2) & !is.na(P_MASS)), aes(x = P_YEAR, y = P_MASS, color = P_HABITABLE)) + scale_color_continuous(breaks = 1:2, labels = 1:2) + #break and label range to remove decimal labels
+  geom_point() + 
+  labs(title = "Conservative/Optimistic Habitability", x = "Year Discoverd", y = "Exoplanet Mass (Earth Masses)") + 
+  theme(legend.position = "right") + 
+  guides(color = guide_legend(title = "Habitable Scale"))  
+```
+
+Due to the lack of resources readily available to scan for more exoplanets, only two methods of exoplanet detection could be used to discover these planets. **Radial Velocity** uses a spectrograph to detect gravity to then detect exoplanets while the **Transit Photometry** method uses shadows from its star to detect the planet (similar to a solar eclipse).
+
+```{r}
+raw_exoplanets %>% filter(P_DETECTION == "Transit") %>% tally()
+raw_exoplanets %>% filter(P_DETECTION == "Radial Velocity") %>% tally()
+```
+
+```{r}
+ggplot(raw_exoplanets %>% filter((P_HABITABLE == 1 | P_HABITABLE == 2) & !is.na(P_MASS)), aes(x = P_DETECTION , y = P_NAME, color = P_DISTANCE))  + 
+  geom_point() + 
+  scale_color_gradient(low = "navyblue", high = "lightblue",labels = percent) + #use for better color distinction compared to default
+  geom_text_repel(aes(label = P_YEAR),box.padding = unit(0.70, "lines")) + #unit for better separation of labels
+  labs(title = "Exoplanet Detection Method", x = "Method Used", y = "Exoplanet Name") + 
+  theme(legend.position = "right") + 
+  guides(color = guide_legend(title = "Distance to Star (AU)"))
+```
+
+This would explain why all exoplanets detected with the Transit Photometry method have low astronomical units towards its star.
+
+Although Radial Velocity is one aspect, most exoplanet and star information are for the most part are detected through spectrophotometry, including the **Planetary Flux**. This method shows how much light passes through the surface of the planet determine the density of the planet's surface. Flux is a key factor in determining whether the exoplanet has water on its surface or not.
+```{r}
+ggplot(raw_exoplanets %>% filter((P_HABITABLE == 1 | P_HABITABLE == 2) & !is.na(P_MASS)), aes(x = P_FLUX, y = P_NAME, fill = P_ESI)) +
+  scale_fill_continuous(labels = percent) + #percentage to compare to earth
+  geom_col() + 
+  labs(title = "Exoplanet Flux Measurement", x = "Flux", y = "Exoplanet Name") + 
+  theme(legend.position = "right") + 
+  guides(fill = guide_legend(title = "Earth Similarity Index"))
+```
+
+The amount of exoplanets that have data for its gravity, density, or radius significantly drops due to little to no extra research conducted for the rest of the exoplanets
+```{r}
+raw_exoplanets %>% 
+  filter((P_HABITABLE == 1 | P_HABITABLE == 2) & !is.na(P_MASS) & !is.na(P_RADIUS)) %>%
+  select(P_NAME, P_MASS, P_RADIUS, P_GRAVITY, P_DENSITY)
+```
+
+Comparing gravity, density, and radius correlating to planetary cycles:
+
+```{r}
+ggplot(raw_exoplanets %>% filter((P_HABITABLE == 1 | P_HABITABLE == 2) & !is.na(P_MASS) & !is.na(P_RADIUS)), aes(x = P_PERIOD , y = P_MASS))  +   
+  scale_color_gradient(low = "lightskyblue", high = "blue4",labels = percent) +
+  scale_fill_gradient(low = "indianred1", high = "red4", labels = percent) +
+  geom_point(aes(color = P_GRAVITY, fill = P_DENSITY, size = P_RADIUS), shape = 21, stroke = 2) + 
+  scale_size(range = c(1, 8), labels = percent) + #range to show exoplanets better
+  labs(title = "Gravity, Density, and Radius of Exoplanets", x = "Planet Period (Days)", y = "Exoplanet Mass (Earth Masses)") + 
+  geom_text_repel(aes(label = P_NAME),box.padding = unit(0.53, "lines")) +
+  theme(legend.position = "right") + 
+  guides(size = guide_legend(title = "Exoplanet Radius"), 
+         color = guide_legend(title = "Exoplanet Gravity"), 
+         fill = guide_legend(title = "Exoplanet Density"))
+```
+
+LHS 1140b seems to be the only exoplanet (with data to back it) twice the gravity, 20% denser, and 60% wider than Earth's composition. TRAPPIST - 1e to TRAPPIST - 1g are for the most part very similar to Earth, while K2-18b stands out as almost nine times as heavy and twice as wide compared to Earth. As shown earlier in a graph, all these exoplanets were discovered through the Transit method, not only meaning that they were close to their star but the planet alignment of a solar eclipse was directed towards Earth for ease of observation.
+
+Here is an overview of the exoplanet's stars
+```{r}
+raw_exoplanets %>% 
+  filter((P_HABITABLE == 1 | P_HABITABLE == 2) & !is.na(P_MASS) & !is.na(P_RADIUS)) %>%
+  select(S_NAME, S_RADIUS, S_MASS, S_TEMPERATURE, S_LUMINOSITY )
+```
+
+Here is the data visualized
+```{r}
+ggplot(raw_exoplanets %>% filter((P_HABITABLE == 1 | P_HABITABLE == 2) & !is.na(P_MASS) & !is.na(P_RADIUS)), aes(x = S_TEMPERATURE , y = S_MASS))  +
+  scale_color_gradient(low = "red4", high = "orange",labels = percent) +
+  scale_size(range = c(1, 8), labels = percent) +
+  geom_point(aes(color = S_LUMINOSITY, size = S_RADIUS), stat = "unique") + #stat = "unique" to remove dupes
+  labs(title = "Star Correlation to Exoplanet", x = "Star Temperature", y = "Star Mass (Solar Units)") + 
+  geom_text_repel(aes(label = S_NAME),stat = "unique", box.padding = unit(0.53, "lines")) +
+  theme(legend.position = "right") + 
+  guides(color = guide_legend(title = "Star Luminosity"),
+         size = guide_legend(title = "Star Radius"))
+```
+
+It should make sense that these stars are neither bright, vast, or as hot as our sun to have habitable planets in theory due to all the planets positioned around 80% closer to its star compared to Earth and our star.
+
+Although the data set has up to four-thousand different planets and correlating stars, only up to six were useful for visualization due no further research. That is why NASA is working on a project to have access to better data to work with, but at a much cheaper cost than usual. They want to develop a space balloon for telescopes to use above the atmosphere, planned to launch on December of 2023 from Antarctica. This way, there won't be many obstructions, allowing NASA to fully utilize the more sensitive telescopes such as ASTHROS (short for Astrophysics Stratospheric Telescope for High Spectral Resolution Observations at Submillimeter-wavelengths). The ASTHROS telescope plans to get a better understanding of star formation.
+
+## Importing FRB Data for Research
+
+**2) Fast Radio Bursts discovered** http://frbcat.org/ 
+```{r}
+raw_frbs <- read.csv(file = "frbcat.csv",  stringsAsFactors = FALSE)
+raw_frbs$telescope[raw_frbs$telescope == "parkes"] <- "Parkes" #to capitalize all parkes telescopes
+
+raw_frbs$telescope <- fct_rev(factor(raw_frbs$telescope)) #to reverse the y-axis order for a later graph
+```
+Fast Radio Bursts were commonly thought to be repeating patterns from Pulsars, but the more effort put into concluding that resulted in more unknowns. As of today, FRBs are known to be short and bright bursts of light (by the millisecond) that occur in the **Radio Wavelength** range of the Electromagnetic Spectrum. FRB 121102 was the specific burst that pushed several into studying FRBs more. It consists of around 2 or 3 repeating bursts per session, up to 8 on June 2nd, 2015. Dispersion and Polarization are the two contributing factors of the Radiowave that scientists use to understand radio bursts better. **Dispersion** is the calculation of separate frequency timing. Dispersion helps give a better understanding of its surroundings of where the burst occurred. **Polarization** is the calculation of where the Radiowave travels to and from. Polarization helps better understand what the source of the emission is.
+
+## Exploring the FRB Dataset
+I wanted to start with looking at how many radio bursts were found based on the telescope used.
+```{r}
+raw_frbs <- raw_frbs %>% group_by(telescope) %>% mutate(counts = n())
+  ggplot(data=raw_frbs, aes(y = telescope)) +
+    geom_bar() +
+    geom_text(stat='count', aes(label=..count..), hjust = -0.25) + #hjust to show numbers better
+    labs(title = "Telescope Usage", y = "Telescope Name", x = "Bursts Discovered Count")
+```
+
+As shown, ASKAP, CHIME, and Parkes have discovered the most FRBs so far. ASKAP (Australian Square Kilometer Array Pathfinder) has 36 individual parabolic antennas in sync to cover a much broader map of FRBs. CHIME (Canadian Hydrogen Intensity Mapping Experiment) works in a similar way with 4 wide parabolic reflectors. The Parkes radio telescope however, is a standalone telescope located in Australia along with ASKAP.
+
+I wanted to continue with looking at the top 10 widest radio bursts in the data set and found
+```{r}
+raw_frbs %>%
+  arrange(desc(rmp_width)) %>%
+  slice(1:10) %>% #only showing first ten
+  select(ï..frb_name, utc, telescope, rmp_width)
+```
+
+
+```{r}
+raw_frbs$telescope <- fct_rev(factor(raw_frbs$telescope)) #to reverse again for separate graph
+```
+Here are all Bursts Visualized
+```{r}
+raw_frbs$utc <- ymd_hms(raw_frbs$utc)#formats utc column into actual dates for graph
+raw_frbs %>%
+  arrange(desc(rmp_width)) %>%
+  slice(1:10) %>% #if removed the y axis uses different numbers for scale
+  ggplot(aes(x = utc, y = rmp_width, color = telescope)) +
+  geom_point() + 
+  scale_y_log10() + #removes clumps of data near 0
+  labs(title = "Bursts Scaled to Telescope Usage", y = "Burst Width (Log(ms))", x = "Date Discoverd") + 
+  theme(legend.position = "right", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + 
+  guides( color = guide_legend(title = "Telescope Used"))
+```
+
+The Pushchino telescope being located at Russia played a strong role into finding the longest lasting FRBs so far. To better understand why, I dug into the location of these FRBs to see where they are placed.  
+```{r}
+raw_frbs %>%
+  ggplot(aes(x = rop_gl, y = rop_gb, size = rmp_width, color = rmp_snr)) + #size shows duration, color shows strength
+  geom_point() +
+  scale_color_gradient(low = "navyblue", high = "red") + #to use distinct colors
+  labs(title = "Galactic Location of Bursts", y = "Galactic Latitude", x = "Galactic Longitude") +
+  theme(legend.position = "right") + 
+  guides(size = guide_legend(title = "Burst Width (ms)"), color = guide_legend(title = "S/N Ratio"))
+```
+
+The galactic coordinate system places the sun at the center(0,0) to give a more precise starting point to locate other planets or stars throughout the solar system and beyond. Signal to Noise ratio (S/N) is the measurement of the signal from the FRBs to the level of background noise that comes with it. A normal ratio would be 1:1(S/N = 0) but as shown in the graph some bursts signal up to even 400 demonstrating just how powerful these signals from billions of light years are. As shown in the plot, the S/N ratio is in no way correlating to the location or the burst width. This might stem from how strong of a signal the burst was if there were debris in the way causing dispersion, or as simple as signal errors. Overall, scientists today still have no conclusion to what all FRBs come from.
+
+Currently in development as a successor to VLT (Very Large Telescope) is ELT (Extremely Large Telescope) by European Southern Observatory. The location of the construction is in the Atacama Desert of northern Chile where there won't be much atmosphere to get in the way and the temperature is close to the same.
+
+## Summary
+In short, from how little we know about star formation, to grasping a better understanding on several types of radio bursts, the findings we have today about space overall are very limited due to lack of resources used for observation. That is why there are upcoming plans to change that. The James Webb Telescope plans to target habitability for exoplanets, ASTHROS is planed to examine the creation and death of stars, and ELT is planned for a broad scope ranging from FRBs, star formation, exoplanet habitability, and even dark energy with dark matter.
+
